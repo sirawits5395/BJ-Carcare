@@ -268,3 +268,71 @@ a:hover{color:#ffe3a6}
   .metric{font-size:13px;padding:10px}
   .metric strong{font-size:23px}
 }
+
+/* Registration page echoes BJ Carcare's black-and-gold LINE OA menu. */
+body:has(.register-page){
+  background:
+    radial-gradient(ellipse 70% 320px at 50% 0,rgba(199,151,65,.22),transparent 78%),
+    repeating-linear-gradient(115deg,transparent 0 3px,rgba(255,255,255,.012) 3px 4px),
+    linear-gradient(135deg,#060606,#181511 47%,#050505);
+}
+.register-page{max-width:780px;padding-top:28px}
+.register-brand{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  text-align:center;
+  gap:8px;
+  padding:24px 22px 20px;
+  border:1px solid #94703a;
+  border-radius:3px;
+  background:
+    radial-gradient(ellipse at 50% 7%,rgba(222,176,81,.18),transparent 60%),
+    linear-gradient(145deg,#161412,#080808 70%);
+  box-shadow:inset 0 0 0 4px #090807,inset 0 0 0 5px #765a31,0 18px 38px rgba(0,0,0,.5);
+}
+.register-brand::before,.register-brand::after{
+  content:"";
+  position:absolute;
+  width:35px;height:35px;
+  border-color:#d2a85d;
+  pointer-events:none;
+}
+.register-brand::before{top:9px;left:9px;border-top:2px solid;border-left:2px solid}
+.register-brand::after{right:9px;bottom:9px;border-right:2px solid;border-bottom:2px solid}
+.register-brand .brand-logo{
+  width:min(100%,460px);
+  height:178px;
+  object-fit:cover;
+  object-position:center 52%;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  margin:auto;
+  mix-blend-mode:screen;
+}
+.register-brand .brand-copy strong{font-size:24px;color:#f5db9d;letter-spacing:.4px}
+.register-brand .brand-copy p{font-size:15px;color:#d1bc90}
+.register-page .panel{
+  border:1px solid transparent;
+  border-radius:3px;
+  background:linear-gradient(155deg,#181614,#0d0d0d 75%) padding-box,
+    linear-gradient(130deg,#6d4d25,#edcb7e 34%,#725023 65%,#d4aa5c) border-box;
+  box-shadow:inset 0 0 0 4px #0c0b0a,0 20px 44px rgba(0,0,0,.45);
+}
+.register-page .panel h1,.register-page .panel h2{color:#f3d58c}
+.register-page input,.register-page textarea{background:#080808;border-color:#836536}
+.register-page .choice{background:#18140e;border-color:#806136}
+.register-page .btn{text-decoration:none}
+@media(max-width:700px){
+  .register-page{padding:16px 14px 46px}
+  .register-brand{padding:17px 16px 18px}
+  .register-brand .brand-logo{width:min(100%,390px);height:145px}
+  .register-brand .brand-copy strong{font-size:20px}
+  .register-brand .brand-copy p{font-size:14px}
+}
+@media(max-width:420px){
+  .register-brand .brand-logo{height:120px}
+  .register-page .panel{padding:18px}
+}
+
