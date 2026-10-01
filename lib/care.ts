@@ -1,0 +1,5 @@
+export function addMonths(date:string,months:number){const [y,m,d]=date.split('-').map(Number);const end=new Date(Date.UTC(y,m-1+months+1,0)).getUTCDate();return new Date(Date.UTC(y,m-1+months,Math.min(d,end))).toISOString().slice(0,10)}
+export function schedule(start:string,years:number){if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||![1,2,3].includes(years)||new Date(start+'T00:00:00Z').toISOString().slice(0,10)!==start)throw Error('Invalid schedule');return Array.from({length:years*4},(_,i)=>{const month=(i+1)*3;return {month,due:addMonths(start,month),kind:month%12===0&&month<years*12?'recoat':'check'}})}
+export const serviceNames:Record<string,string>={ceramic:'เคลือบเซรามิก',seat:'ซักเบาะ',carpet:'ซักพรม'};
+export const dateText=(d:string)=>new Date(d+'T00:00:00Z').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Bangkok'});
+export const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());

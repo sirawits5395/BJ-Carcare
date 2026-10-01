@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+const base='http://127.0.0.1:5173';
+const login=await fetch(base+'/signin-with-chatgpt?return_to=/',{redirect:'manual'});const cookie=login.headers.getSetCookie().map(x=>x.split(';')[0]).join('; ');assert.ok(cookie);
+async function request(path,method='GET',body){return fetch(base+path,{method,headers:{Cookie:cookie,Origin:base,...(body instanceof FormData?{}:body?{'Content-Type':'application/json'}:{})},body:body instanceof FormData?body:body?JSON.stringify(body):undefined})}
+const initial=await request('/api/records');assert.equal(initial.status,200,await initial.text());
+const f=new FormData();for(const [k,v] of Object.entries({name:'ทดสอบระบบ ไม่ใช่ลูกค้าจริง',phone:'0800000000',plate:'TEST 001',province:'ทดสอบ',model:'TEST',services:JSON.stringify(['ceramic','seat','carpet']),consent:'true',note:'Local verification only'}))f.set(k,v);
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jT1kAAAAASUVORK5CYII=','base64');f.set('slip',new Blob([png],{type:'image/png'}),'test.png');
+const reg=await request('/api/records','POST',f);assert.equal(reg.status,201,await reg.clone().text());const {id}=await reg.json();
+const evidence=await request('/api/evidence?id='+id+'&type=slip');assert.equal(evidence.status,200);assert.equal(evidence.headers.get('content-type'),'image/png');
+const approve=await request('/api/records','PATCH',{id,action:'approve',years:3,start:'2025-01-31'});assert.equal(approve.status,200,await approve.text());const duplicate=await request('/api/records','PATCH',{id,action:'approve',years:3,start:'2025-01-31'});assert.equal(duplicate.status,409);
+const data=await (await request('/api/records')).json();const rounds=data.visits.filter(v=>v.record_id===id);assert.equal(rounds.length,12);assert.deepEqual(rounds.filter(v=>v.kind==='recoat').map(v=>v.month),[12,24]);
+const done=await request('/api/records','PATCH',{id,action:'complete',visitId:rounds[0].id,completed:'2025-04-30'});assert.equal(done.status,200);const after=await (await request('/api/records')).json();assert.equal(after.visits.find(v=>v.id===rounds[0].id).completed,'2025-04-30');
+const unauth=await fetch(base+'/api/evidence?id='+id+'&type=slip');assert.equal(unauth.status,401);const cross=await fetch(base+'/api/records',{method:'PATCH',headers:{Cookie:cookie,Origin:'https://invalid.example','Content-Type':'application/json'},body:JSON.stringify({id,action:'approve'})});assert.equal(cross.status,403);console.log('PASS: registration, image storage/read-back, approval, 12 rounds, duplicate approval rejection, completion, unauthenticated evidence denial, cross-origin write denial.');
