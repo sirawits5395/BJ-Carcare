@@ -1,0 +1,5 @@
+import {env} from 'cloudflare:workers';
+import {sameOrigin,db,fail} from '@/lib/server';
+import {saveRegistration} from '@/lib/registration';
+import {verifyLineToken} from '@/lib/line-core';
+export async function POST(req:Request){try{sameOrigin(req);const e=env as any;if(e.CUSTOMER_REGISTRATION_ENABLED!=='true'||!e.LINE_LOGIN_CHANNEL_ID||!e.BJ_OWNER_ID)return new Response('ร้านยังไม่เปิดรับลงทะเบียนผ่าน LINE',{status:503});if(Number(req.headers.get('content-length')||0)>11*1024*1024)return new Response('ไฟล์ใหญ่เกินไป',{status:413});const token=req.headers.get('authorization')?.replace(/^Bearer /,'')||'';let userId;try{userId=await verifyLineToken(token,e.LINE_LOGIN_CHANNEL_ID)}catch{return new Response('กรุณาเข้าสู่ระบบ LINE ใหม่',{status:401})}const counts=await db().prepare('SELECT COUNT(*) count FROM records WHERE line_user_id=? AND created>?').bind(userId,new Date(Date.now()-3600000).toISOString()).first<any>();if(counts.count>=5)return new Response('ส่งข้อมูลครบจำนวนต่อชั่วโมงแล้ว กรุณาติดต่อร้าน',{status:429});return await saveRegistration(req,e.BJ_OWNER_ID,userId)}catch(e){return fail(e)}}
