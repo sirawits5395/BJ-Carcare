@@ -11,7 +11,7 @@ const imageLimit=5*1024*1024;
 interface PlateRead {plate:string;province:string;brand:string;model:string;color:string;confidence:number}
 
 async function imageFromLine(id:string):Promise<{bytes:Uint8Array;mime:string}|null>{
-  const token=safeText(config().LINE_CHANNEL_ACCESS_TOKEN,4096);
+  const token=safeText(config().BJ_STAFF_LINE_CHANNEL_ACCESS_TOKEN,4096);
   if(!token)return null;
   const result=await fetch('https://api-data.line.me/v2/bot/message/'+encodeURIComponent(id)+'/content',{
     headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(12000)});
