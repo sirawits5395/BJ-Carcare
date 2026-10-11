@@ -87,8 +87,9 @@ async function handleImage(e:GroupEvent,owner:string,group:string){
     await bucket().put(key,image.bytes,{httpMetadata:{contentType:image.mime}});
     const ocr=await readPlate(image.bytes,image.mime);
     const memberId=ocr&&ocr.confidence>=90?await findMember(owner,ocr.plate,ocr.province):null;
-    await db().prepare('UPDATE wash_jobs SET image_key=?,plate=?,province=?,brand=?,model=?,color=?,plate_confidence=?,member_id=?,status=?,updated_at=? WHERE image_id=?')
-      .bind(key,ocr?.plate||null,ocr?.province||null,ocr?.brand||null,ocr?.model||null,ocr?.color||null,ocr?.confidence||0,memberId,memberId?'open':'needs_review',now(),id).run();
+    await db().prepare("UPDATE wash_jobs SET image_key=?,plate=?,province=?,brand=?,model=?,color=?,plate_confidence=?,member_id=?,status=CASE WHEN status='excluded' THEN 'excluded' WHEN reply_id IS NOT NULL AND ? IS NOT NULL THEN 'closed' WHEN reply_id IS NOT NULL THEN 'needs_review' ELSE ? END,updated_at=? WHERE image_id=?")
+      .bind(key,ocr?.plate||null,ocr?.province||null,ocr?.brand||null,ocr?.model||null,ocr?.color||null,ocr?.confidence||0,memberId,memberId,memberId?'open':'needs_review',now(),id).run();
+    if(memberId)await syncWashAward(id,'Recognized member after LINE photo');
   }catch{
     console.error('Wash image ingestion requires review:',id);
     await db().prepare("UPDATE wash_jobs SET status='needs_review',updated_at=? WHERE image_id=?").bind(now(),id).run();
