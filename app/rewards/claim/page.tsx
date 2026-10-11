@@ -1,0 +1,18 @@
+"use client";
+import {useEffect,useState} from 'react';
+
+type Liff={init(options:{liffId:string}):Promise<void>;isLoggedIn():boolean;login(options?:{redirectUri?:string}):void;getIDToken():string|null};
+const liffClient=()=> Reflect.get(window,'liff') as Liff|undefined;
+export default function RewardClaimPage(){
+ const [token,setToken]=useState(''),[liffId,setLiffId]=useState(''),[authToken,setAuthToken]=useState(''),[status,setStatus]=useState('กำลังตรวจสอบบัญชี LINE…'),[busy,setBusy]=useState(false);
+ useEffect(()=>{const params=new URLSearchParams(window.location.search);
+  // The URL token is intentionally read on mount because this is a LIFF callback route.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  setToken(params.get('claim')||'');let active=true;
+  fetch('/api/customer/config').then(r=>r.json() as Promise<{liffId?:string}>).then(data=>{if(active){setLiffId(data.liffId||'');if(!data.liffId)setStatus('ร้านยังไม่ได้ตั้งค่า LINE Login กรุณาติดต่อร้าน')}}).catch(()=>{if(active)setStatus('ไม่สามารถเชื่อมต่อระบบได้ กรุณาลองอีกครั้ง')});
+  const begin=()=>{const script=document.createElement('script');script.src='https://static.line-scdn.net/liff/edge/2/sdk.js';script.async=true;script.onload=()=>{void (async()=>{try{const liff=liffClient();if(!liff||!liffId)return;await liff.init({liffId});if(!liff.isLoggedIn()){liff.login({redirectUri:window.location.href});return}const idToken=liff.getIDToken();if(!idToken)throw Error('LINE_ID_TOKEN_MISSING');if(active){setAuthToken(idToken);setStatus('กรุณาตรวจทะเบียนรถก่อนส่งให้ร้าน')}}catch{if(active)setStatus('เข้าสู่ระบบ LINE ไม่สำเร็จ กรุณาเปิดลิงก์ใน LINE อีกครั้ง')}})()};document.head.appendChild(script);return()=>{script.remove()}};
+  if(liffId){const cleanup=begin();return()=>{active=false;cleanup()}}return()=>{active=false};
+ },[liffId]);
+ async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);setBusy(true);setStatus('กำลังส่งข้อมูล…');try{const response=await fetch('/api/rewards/claim',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+authToken},body:JSON.stringify({claimToken:token,plate:form.get('plate'),province:form.get('province')})});const result=await response.json() as {message?:string};if(!response.ok)throw Error(result.message||'ส่งข้อมูลไม่สำเร็จ');setStatus(result.message||'ส่งข้อมูลให้ร้านตรวจสอบแล้ว');setToken('');history.replaceState({},'',location.pathname)}catch(error){setStatus(error instanceof Error?error.message:'ส่งข้อมูลไม่สำเร็จ')}finally{setBusy(false)}}
+ return <main className="container" style={{maxWidth:640,paddingTop:32}}><section className="panel"><p className="eyebrow">BJ CARCARE · REWARDS</p><h1>ยืนยันทะเบียนเพื่อรับคะแนน</h1><p className="helper">ส่งสลิปไว้ให้ร้านตรวจสอบและจับคู่กับงานล้างรถ กรุณาเข้าสู่ระบบด้วย LINE บัญชีเดียวกับที่ส่งสลิป ลิงก์ใช้ได้ครั้งเดียวภายใน 24 ชั่วโมง</p>{!token?<p className="error" role="alert">ไม่พบลิงก์หรือส่งข้อมูลไปแล้ว กรุณาส่งสลิปใหม่ทาง LINE OA @bjcarcare</p>:<form className="card field-row" onSubmit={submit}><label>ทะเบียนรถ<input name="plate" required maxLength={30} autoComplete="off"/></label><label>จังหวัดตามทะเบียน<input name="province" required maxLength={60} autoComplete="off"/></label><button className="btn" disabled={!authToken||busy}>{busy?'กำลังส่ง…':'ยืนยันข้อมูลให้ร้านตรวจสอบ'}</button></form>}<p className="notice" role="status">{status}</p><p className="helper">รูปสลิปอย่างเดียวไม่ใช่หลักฐานยืนยันเงินเข้า คะแนนจะเพิ่มเมื่อร้านตรวจสอบยอดและยืนยันรายการล้างรถแล้วเท่านั้น</p></section></main>
+}

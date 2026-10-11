@@ -9,13 +9,14 @@ for(const [input,kind,amount,payment] of [
  ['1999','promo_sale',1999,'transfer'],
  ['VIP','membership_sale',null,'none'],
  ['ฟรี','free_wash',null,'none'],
- ['ติดฟิล์ม 2500','other',2500,'transfer'],
- ['เคลือบแก้ว 500','other',500,'transfer'],
- ['เคลือบแก้ว 3500','other',3500,'transfer'],
- ['ซักเบาะ 3500 สด','other',3500,'cash'],
- ['ซักพรม','other',null,'none'],
- ['ขัดไฟ','other',null,'none'],
- ['อบโอโซน','other',null,'none']
+ ['ติดฟิล์ม 2500','film',2500,'transfer'],
+ ['เคลือบแก้ว 500','ceramic_maintenance',500,'transfer'],
+ ['เคลือบแก้ว 3,500','ceramic_full',3500,'transfer'],
+ ['ซักเบาะ 3500 สด','seat',3500,'cash'],
+ ['ซักพรม 3500','carpet',3500,'transfer'],
+ ['ขัดไฟ','headlight',null,'none'],
+ ['อบโอโซน','ozone',null,'none'],
+ ['450 / 550','unknown',null,'none']
 ]) {
  const parsed=parseStaffReply(input);
  assert.equal(parsed.type,kind,input+' type');

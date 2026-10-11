@@ -3,14 +3,15 @@ export interface WashJobReportRow {
  service_type:string;
  payment_method:string;
  amount:number|null;
+ owner_verified:number;
  opened_at:string;
  closed_at:string|null;
  reply_id:string|null;
 }
 export interface WashDailySummary {
- date:string; arrivals:number; closedArrivals:number; waiting:number; needsReview:number;
+ date:string; arrivals:number; closedArrivals:number; waiting:number; needsReview:number; unverifiedPayments:number;
  closedToday:number; paidWashes:number; freeWashes:number; promoSales:number;
- otherServices:number; cash:number; transfer:number; total:number;
+ otherServices:number; film:number; ceramicMaintenance:number; ceramicFull:number; seat:number; carpet:number; headlight:number; ozone:number; cash:number; transfer:number; total:number;
 }
 export function bangkokDate(value:Date|number|string=new Date()):string{
  const d=value instanceof Date?value:new Date(value);
@@ -23,14 +24,15 @@ export function bangkokDateRange(date:string):[string,string] {
  return [new Date(start).toISOString(),new Date(start+86400000).toISOString()];
 }
 export function summarizeWashDay(date:string,rows:WashJobReportRow[]):WashDailySummary {
- const out:WashDailySummary={date,arrivals:0,closedArrivals:0,waiting:0,needsReview:0,closedToday:0,paidWashes:0,freeWashes:0,promoSales:0,otherServices:0,cash:0,transfer:0,total:0};
+ const out:WashDailySummary={date,arrivals:0,closedArrivals:0,waiting:0,needsReview:0,unverifiedPayments:0,closedToday:0,paidWashes:0,freeWashes:0,promoSales:0,otherServices:0,film:0,ceramicMaintenance:0,ceramicFull:0,seat:0,carpet:0,headlight:0,ozone:0,cash:0,transfer:0,total:0};
  for(const job of rows) {
   if(job.status==='excluded')continue;
   const arrival=bangkokDate(job.opened_at)===date;
-  const closed=!!job.reply_id && !!job.closed_at && bangkokDate(job.closed_at)===date;
+  const closed=job.status==='closed' && !!job.reply_id && !!job.closed_at && bangkokDate(job.closed_at)===date;
   if(arrival) {
    out.arrivals++;
-   if(job.reply_id)out.closedArrivals++;else out.waiting++;
+   if(job.status==='closed')out.closedArrivals++;
+   else if(job.status==='open'&&!job.reply_id)out.waiting++;
    if(job.status==='needs_review')out.needsReview++;
   }
   if(!closed)continue;
@@ -38,9 +40,17 @@ export function summarizeWashDay(date:string,rows:WashJobReportRow[]):WashDailyS
   if(job.service_type==='wash')out.paidWashes++;
   else if(job.service_type==='free_wash')out.freeWashes++;
   else if(job.service_type==='promo_sale'||job.service_type==='membership_sale')out.promoSales++;
+  else if(job.service_type==='film')out.film++;
+  else if(job.service_type==='ceramic_maintenance')out.ceramicMaintenance++;
+  else if(job.service_type==='ceramic_full')out.ceramicFull++;
+  else if(job.service_type==='seat')out.seat++;
+  else if(job.service_type==='carpet')out.carpet++;
+  else if(job.service_type==='headlight')out.headlight++;
+  else if(job.service_type==='ozone')out.ozone++;
   else out.otherServices++;
   const amount=Number(job.amount);
   if(!Number.isSafeInteger(amount)||amount<=0)continue;
+  if(job.owner_verified!==1&&['cash','transfer'].includes(job.payment_method))out.unverifiedPayments++;
   if(job.payment_method==='cash')out.cash+=amount;
   else if(job.payment_method==='transfer')out.transfer+=amount;
  }
@@ -54,15 +64,18 @@ export function formatWashSummary(s:WashDailySummary):string{
  return [
  'BJ CARCARE | สรุปยอด '+thaiDate,
  'รถเข้า: '+s.arrivals+' คัน',
- 'มี Reply ปิดงาน: '+s.closedArrivals+' คัน (จากรถที่เข้าวันนี้)',
- 'ยังไม่มี Reply: '+s.waiting+' คัน',
+  'งานปิดแล้วจากรถเข้าวันนี้: '+s.closedArrivals+' คัน',
+ 'งานยังไม่ปิด: '+s.waiting+' คัน',
  'รอตรวจสอบข้อมูล: '+s.needsReview+' คัน',
+ 'รอยืนยันยอดรับเงินจริง: '+s.unverifiedPayments+' งาน',
  '────────────',
  'รายการปิดยอดวันนี้: '+s.closedToday+' งาน',
  'ล้างรถชำระเงิน: '+s.paidWashes+' งาน',
  'ล้างฟรี: '+s.freeWashes+' งาน',
  'ขายโปร/สมาชิก: '+s.promoSales+' งาน',
- 'บริการอื่น/ไม่ระบุ: '+s.otherServices+' งาน',
+  'ติดฟิล์ม: '+s.film+' · เคลือบแก้ว Maintenance: '+s.ceramicMaintenance+' · เคลือบแก้วเต็ม: '+s.ceramicFull,
+  'ซักเบาะ: '+s.seat+' · ซักพรม: '+s.carpet+' · ขัดไฟ: '+s.headlight+' · อบโอโซน: '+s.ozone,
+  'บริการอื่น/ไม่ระบุ: '+s.otherServices+' งาน',
  '────────────',
  'เงินสด: '+money(s.cash)+' บาท',
  'เงินโอน: '+money(s.transfer)+' บาท',
