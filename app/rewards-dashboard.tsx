@@ -2,14 +2,14 @@
 import {useEffect,useState,FormEvent} from 'react';
 type Member={id:string;plate:string;province:string;customer_name:string;phone:string;points:number;washes:number};
 type Job={image_id:string;plate:string|null;province:string|null;brand:string|null;model:string|null;color:string|null;plate_confidence:number;member_id:string|null;member_name:string|null;service_type:string;payment_method:string;amount:number|null;reply_text:string|null;opened_at:string;status:string;award_active:number|null;award_points:number|null;image_key:string|null};
-type Report={policy:{enabled:number;points_per_wash:number;include_free:number};members:Member[];jobs:Job[];transactions:{id:string;plate:string;province:string;points_delta:number;reason:string;created_at:string}[]};
+type Report={policy:{enabled:number;points_per_wash:number;include_free:number};members:Member[];jobs:Job[];transactions:{id:string;plate:string;province:string;points_delta:number;reason:string;created_at:string}[];registered:{id:string;name:string;plate:string;province:string;phone:string}[]};
 export default function RewardsDashboard(){
  const [data,setData]=useState<Report|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [points,setPoints]=useState(10),[enabled,setEnabled]=useState(false),[matches,setMatches]=useState<Record<string,string>>({});
  async function refresh(){setLoading(true);try{const r=await fetch('/api/rewards');if(!r.ok)throw Error(await r.text());const d:Report=await r.json();setData(d);setPoints(d.policy.points_per_wash);setEnabled(d.policy.enabled===1);setError('')}catch(e){setError(String(e))}finally{setLoading(false)}}
  useEffect(()=>{refresh()},[]);
  async function send(body:Record<string,unknown>,success='บันทึกเรียบร้อย'){setBusy(true);setError('');try{const r=await fetch('/api/rewards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());setNotice(success);await refresh()}catch(e){setError(String(e))}finally{setBusy(false)}}
- function enroll(ev:FormEvent<HTMLFormElement>){ev.preventDefault();const f=new FormData(ev.currentTarget);void send({action:'enroll',customerName:f.get('customerName'),phone:f.get('phone'),plate:f.get('plate'),province:f.get('province')},'ลงทะเบียนรถสมาชิกแล้ว');ev.currentTarget.reset()}
+ function enroll(ev:FormEvent<HTMLFormElement>){ev.preventDefault();const f=new FormData(ev.currentTarget);void send({action:'enroll',recordId:f.get('recordId')},'เปิดสิทธิ์สะสมคะแนนให้รถใน CRM แล้ว');ev.currentTarget.reset()}
  const review=data?.jobs.filter(j=>j.status==='needs_review'||(!j.member_id&&j.status!=='excluded')||j.service_type==='unknown')||[];
  const totalPoints=data?.members.reduce((n,m)=>n+Number(m.points),0)||0;
  return <section className="panel">
@@ -24,9 +24,9 @@ export default function RewardsDashboard(){
     <div className="grid2 field-row"><label>คะแนนต่อการล้าง 1 ครั้ง<input type="number" min="1" max="1000" required value={points} onChange={e=>setPoints(Number(e.target.value))}/></label><label className="choice"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> เปิดให้สะสมคะแนนจาก LINE Bot</label></div>
     <button className="btn" disabled={busy}>บันทึกกติกา</button>
    </form>
-   <form className="card" onSubmit={enroll}><h3>ลงทะเบียนรถสมาชิก</h3><p className="helper">พนักงานต้องตรวจสอบความเป็นเจ้าของรถก่อนเพิ่มข้อมูล ห้ามระบุเจ้าของจากทะเบียนที่ AI อ่านเพียงอย่างเดียว</p>
-    <div className="grid2 field-row"><label>ชื่อลูกค้า *<input name="customerName" required maxLength={100}/></label><label>เบอร์โทร (ถ้ามี)<input name="phone" maxLength={20}/></label><label>ทะเบียน *<input name="plate" required maxLength={30}/></label><label>จังหวัด *<input name="province" required maxLength={60}/></label></div>
-    <button className="btn" disabled={busy}>เพิ่มรถสมาชิก</button>
+   <form className="card" onSubmit={enroll}><h3>เปิดสิทธิ์คะแนนให้รถที่ลงทะเบียนกับ CRM</h3><p className="helper">เลือกรถที่ผ่านการยืนยันบริการใน CRM แล้ว ข้อมูลชื่อและทะเบียนจะถูกดึงจากฐานเดิม ไม่สร้างลูกค้าใหม่</p>
+    <label>รถที่ลงทะเบียนแล้ว *<select className="search" name="recordId" required defaultValue=""><option value="" disabled>เลือกทะเบียนและลูกค้า</option>{data?.registered.map(r=><option key={r.id} value={r.id}>{r.plate} · {r.province} — {r.name}</option>)}</select></label>
+    <div className="field-row"><button className="btn" disabled={busy||!data?.registered.length}>เปิดสิทธิ์คะแนน</button></div>
    </form>
    <section className="field-row"><h3>คะแนนสมาชิก</h3>{!data?.members.length?<p className="helper">ยังไม่มีรถสมาชิกที่ลงทะเบียน</p>:<div className="grid2">{data.members.map(m=><div className="card" key={m.id}><strong>{m.plate} · {m.province}</strong><p>{m.customer_name}</p><p className="helper">{m.phone}</p><div className="card-head"><span>ล้าง {m.washes} ครั้ง</span><strong>{m.points} คะแนน</strong></div></div>)}</div>}</section>
    <section className="field-row"><h3>รายการจากกลุ่ม LINE</h3><p className="helper">รูปและเลขทะเบียนที่ AI อ่านได้ต้องตรวจให้ตรงก่อนยืนยันรายการที่ไม่แน่ใจ</p>
