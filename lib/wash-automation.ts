@@ -92,6 +92,8 @@ async function handleReport(e:GroupEvent,owner:string,group:string):Promise<bool
    "SELECT status,service_type,payment_method,amount,opened_at,closed_at,reply_id FROM wash_jobs WHERE owner=? AND group_id=? AND (opened_at>=? AND opened_at<? OR closed_at>=? AND closed_at<?)"
  ).bind(owner,group,start,end,start,end).all();
  const report=formatWashSummary(summarizeWashDay(date,recent.results as any));
+ const command=await db().prepare('INSERT OR IGNORE INTO line_staff_command_events(message_id,group_id,created_at) VALUES(?,?,?)').bind(m!.id,group,now()).run();
+ if(!command.meta.changes)return true;
  const result=await fetch('https://api.line.me/v2/bot/message/reply',{
    method:'POST',
    headers:{Authorization:'Bearer '+safeText(c.BJ_STAFF_LINE_CHANNEL_ACCESS_TOKEN,4096),'Content-Type':'application/json'},
@@ -132,7 +134,7 @@ async function handleText(e:GroupEvent,owner:string,group:string){
   await db().prepare('INSERT OR IGNORE INTO line_job_replies(message_id,job_image_id) VALUES(?,?)').bind(m.id,job.image_id).run();
   // Older or replayed webhook messages must not overwrite a newer correction.
   const updated=await db().prepare(
-    'UPDATE wash_jobs SET status=?,service_type=?,payment_method=?,amount=?,reply_id=?,reply_text=?,closed_at=?,updated_at=? WHERE image_id=? AND (closed_at IS NULL OR closed_at<=?)'
+    'UPDATE wash_jobs SET status=?,service_type=?,payment_method=?,amount=?,reply_id=?,reply_text=?,closed_at=?,updated_at=? WHERE image_id=? AND status <> 'excluded' AND (closed_at IS NULL OR closed_at<=?)'
   ).bind(job.member_id?'closed':'needs_review',parsed.type,parsed.payment,parsed.amount,m.id,parsed.text,when,now(),job.image_id,when).run();
   if(updated.meta.changes)await syncWashAward(job.image_id,'LINE reply '+m.id);
 }
