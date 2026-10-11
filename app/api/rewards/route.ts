@@ -7,13 +7,14 @@ const bad=(s:string,status=400)=>new Response(s,{status});
 export async function GET(){
  try{
   const uid=await owner();
-  const [policy,members,jobs,transactions]=await Promise.all([
+  const [policy,members,jobs,transactions,registered]=await Promise.all([
    db().prepare('SELECT * FROM reward_policies WHERE owner=?').bind(uid).first(),
    db().prepare('SELECT m.*,COALESCE(SUM(CASE WHEN a.active=1 THEN a.points ELSE 0 END),0) AS points,COUNT(CASE WHEN a.active=1 THEN 1 END) AS washes FROM reward_members m LEFT JOIN reward_awards a ON a.member_id=m.id AND a.owner=m.owner WHERE m.owner=? GROUP BY m.id ORDER BY m.created_at DESC LIMIT 250').bind(uid).all(),
    db().prepare('SELECT j.*,m.customer_name AS member_name,a.points AS award_points,a.active AS award_active FROM wash_jobs j LEFT JOIN reward_members m ON m.id=j.member_id LEFT JOIN reward_awards a ON a.job_image_id=j.image_id WHERE j.owner=? ORDER BY j.opened_at DESC LIMIT 100').bind(uid).all(),
-   db().prepare('SELECT a.*,m.plate,m.province FROM reward_audit a JOIN reward_members m ON m.id=a.member_id WHERE a.owner=? ORDER BY a.created_at DESC LIMIT 50').bind(uid).all()
+   db().prepare('SELECT a.*,m.plate,m.province FROM reward_audit a JOIN reward_members m ON m.id=a.member_id WHERE a.owner=? ORDER BY a.created_at DESC LIMIT 50').bind(uid).all(),
+   db().prepare("SELECT id,name,phone,plate,province FROM records WHERE owner=? AND status='approved' ORDER BY created DESC LIMIT 250").bind(uid).all()
   ]);
-  return Response.json({policy:policy||{enabled:0,points_per_wash:10,include_free:0},members:members.results,jobs:jobs.results,transactions:transactions.results},{headers:{'Cache-Control':'no-store'}});
+  return Response.json({policy:policy||{enabled:0,points_per_wash:10,include_free:0},members:members.results,jobs:jobs.results,transactions:transactions.results,registered:registered.results},{headers:{'Cache-Control':'no-store'}});
  }catch(e){return fail(e)}
 }
 export async function POST(req:Request){
@@ -21,12 +22,15 @@ export async function POST(req:Request){
   sameOrigin(req);
   const uid=await owner(),v:any=await req.json(),action=clean(v.action,40);
   if(action==='enroll'){
-   const plate=clean(v.plate,30),province=clean(v.province,60),name=clean(v.customerName,100),phone=clean(v.phone,20);
-   if(!plate||!province||!name||plateKey(plate).length<3||provinceKey(province).length<2)return bad('ระบุชื่อสมาชิก ทะเบียน และจังหวัดให้ครบ');
+   const recordId=clean(v.recordId,100);
+   const original:any=await db().prepare("SELECT id,name,phone,plate,province FROM records WHERE id=? AND owner=? AND status='approved'").bind(recordId,uid).first();
+   if(!original)return bad('เลือกรถที่ผ่านการลงทะเบียนและยืนยันใน CRM ก่อน',404);
+   const plate=clean(original.plate,30),province=clean(original.province,60),name=clean(original.name,100),phone=clean(original.phone,20);
+   if(!plate||!province||plateKey(plate).length<3||provinceKey(province).length<2)return bad('ข้อมูลทะเบียนหรือจังหวัดไม่ครบ');
    const exists=await db().prepare('SELECT id FROM reward_members WHERE owner=? AND plate_key=? AND province_key=?').bind(uid,plateKey(plate),provinceKey(province)).first();
-   if(exists)return bad('ทะเบียนนี้ลงทะเบียนคะแนนแล้ว',409);
+   if(exists)return bad('ทะเบียนนี้อยู่ในบัญชีคะแนนแล้ว',409);
    const id=crypto.randomUUID();
-   await db().prepare('INSERT INTO reward_members(id,owner,plate,province,plate_key,province_key,customer_name,phone,active,created_at) VALUES(?,?,?,?,?,?,?,?,1,?)').bind(id,uid,plate,province,plateKey(plate),provinceKey(province),name,phone,new Date().toISOString()).run();
+   await db().prepare('INSERT INTO reward_members(id,owner,plate,province,plate_key,province_key,customer_name,phone,source_record_id,active,created_at) VALUES(?,?,?,?,?,?,?,?,?,1,?)').bind(id,uid,plate,province,plateKey(plate),provinceKey(province),name,phone,recordId,new Date().toISOString()).run();
    return Response.json({ok:true,id},{status:201});
   }
   if(action==='policy'){
