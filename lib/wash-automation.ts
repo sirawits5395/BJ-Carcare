@@ -1,8 +1,9 @@
 import {env} from 'cloudflare:workers';
 import {db,bucket} from '@/lib/server';
 import {eligibleForPoints,parseStaffReply,plateKey,provinceKey} from '@/lib/wash-rewards';
+import {bangkokDate,bangkokDateRange,formatWashSummary,reportCommand,summarizeWashDay} from '@/lib/wash-report';
 
-type GroupEvent={type:string;timestamp:number;source?:{type?:string;groupId?:string;userId?:string};message?:{type:string;id:string;quotedMessageId?:string;text?:string;contentProvider?:{type:string}}};
+type GroupEvent={type:string;timestamp:number;replyToken?:string;source?:{type?:string;groupId?:string;userId?:string};message?:{type:string;id:string;quotedMessageId?:string;text?:string;contentProvider?:{type:string}}};
 const config=()=>env as any;
 const stamp=(ms:number)=>new Date(ms).toISOString();
 const now=()=>new Date().toISOString();
@@ -76,6 +77,30 @@ export async function syncWashAward(jobId:string,reason:string):Promise<void>{
   const result=await db().prepare('INSERT OR IGNORE INTO reward_awards(job_image_id,owner,member_id,points,active,created_at,updated_at) VALUES(?,?,?,?,1,?,?)').bind(jobId,job.owner,job.member_id,points,now(),now()).run();
   if(result.meta.changes)await db().prepare('INSERT INTO reward_audit(id,owner,member_id,job_image_id,points_delta,reason,created_at) VALUES(?,?,?,?,?,?,?)').bind(crypto.randomUUID(),job.owner,job.member_id,jobId,points,reason,now()).run();
 }
+async function handleReport(e:GroupEvent,owner:string,group:string):Promise<boolean>{
+ const m=e.message;
+ const date=m?.type==='text'?reportCommand(m.text||'',bangkokDate()):null;
+ if(!date)return false;
+ // Only an explicitly authorized staff group can request sales figures; optional staff user allowlist.
+ const c=config(),users=safeText(c.BJ_STAFF_REPORT_USER_IDS,4000).split(',').map(s=>s.trim()).filter(Boolean);
+ if(users.length&&!users.includes(e.source?.userId||''))return true;
+ const replyToken=safeText(e.replyToken,200);
+ if(!replyToken)return true;
+ let start:string,end:string;
+ try{[start,end]=bangkokDateRange(date)}catch{return true}
+ const recent=await db().prepare(
+   "SELECT status,service_type,payment_method,amount,opened_at,closed_at,reply_id FROM wash_jobs WHERE owner=? AND group_id=? AND (opened_at>=? AND opened_at<? OR closed_at>=? AND closed_at<?)"
+ ).bind(owner,group,start,end,start,end).all();
+ const report=formatWashSummary(summarizeWashDay(date,recent.results as any));
+ const result=await fetch('https://api.line.me/v2/bot/message/reply',{
+   method:'POST',
+   headers:{Authorization:'Bearer '+safeText(c.BJ_STAFF_LINE_CHANNEL_ACCESS_TOKEN,4096),'Content-Type':'application/json'},
+   body:JSON.stringify({replyToken,messages:[{type:'text',text:report}]}),
+   signal:AbortSignal.timeout(9000)
+ });
+ if(!result.ok)console.warn('staff_report_reply_failed',result.status);
+ return true;
+}
 async function handleImage(e:GroupEvent,owner:string,group:string){
   const id=e.message!.id,when=stamp(e.timestamp);
   const put=await db().prepare('INSERT OR IGNORE INTO wash_jobs(image_id,owner,group_id,status,opened_at,updated_at) VALUES(?,?,?,?,?,?)').bind(id,owner,group,'open',when,when).run();
@@ -115,6 +140,7 @@ export async function handleStaffGroupEvent(e:GroupEvent):Promise<void>{
   const c=config(),group=safeText(e.source?.groupId,100),owner=safeText(c.BJ_OWNER_ID,200);
   if(c.BJ_WASH_BOT_ENABLED!=='true'||!owner||!group||group!==c.BJ_STAFF_LINE_GROUP_ID||
      e.source?.type!=='group'||e.type!=='message'||!e.message?.id||!Number.isSafeInteger(e.timestamp))return;
+  if(e.message.type==='text'&&await handleReport(e,owner,group))return;
   if(e.message.type==='image'&&e.message.contentProvider?.type!=='external')await handleImage(e,owner,group);
   if(e.message.type==='text')await handleText(e,owner,group);
 }
