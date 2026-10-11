@@ -38,3 +38,8 @@ CREATE TABLE IF NOT EXISTS reward_audit (
  reason TEXT NOT NULL, created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_reward_audit_owner_created ON reward_audit(owner,created_at DESC);
+
+-- Prevent redelivery of the same staff report command from generating duplicate replies.
+CREATE TABLE IF NOT EXISTS line_staff_command_events (
+ message_id TEXT PRIMARY KEY, group_id TEXT NOT NULL, created_at TEXT NOT NULL
+);
