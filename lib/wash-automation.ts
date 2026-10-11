@@ -134,7 +134,7 @@ async function handleText(e:GroupEvent,owner:string,group:string){
   await db().prepare('INSERT OR IGNORE INTO line_job_replies(message_id,job_image_id) VALUES(?,?)').bind(m.id,job.image_id).run();
   // Older or replayed webhook messages must not overwrite a newer correction.
   const updated=await db().prepare(
-    'UPDATE wash_jobs SET status=?,service_type=?,payment_method=?,amount=?,reply_id=?,reply_text=?,closed_at=?,updated_at=? WHERE image_id=? AND status <> 'excluded' AND (closed_at IS NULL OR closed_at<=?)'
+    "UPDATE wash_jobs SET status=?,service_type=?,payment_method=?,amount=?,reply_id=?,reply_text=?,closed_at=?,updated_at=? WHERE image_id=? AND status <> 'excluded' AND (closed_at IS NULL OR closed_at<=?)"
   ).bind(job.member_id?'closed':'needs_review',parsed.type,parsed.payment,parsed.amount,m.id,parsed.text,when,now(),job.image_id,when).run();
   if(updated.meta.changes)await syncWashAward(job.image_id,'LINE reply '+m.id);
 }
