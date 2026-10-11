@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS reward_members (
  id TEXT PRIMARY KEY, owner TEXT NOT NULL, plate TEXT NOT NULL, province TEXT NOT NULL,
  plate_key TEXT NOT NULL, province_key TEXT NOT NULL,
- customer_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '',
+ customer_name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', source_record_id TEXT REFERENCES records(id),
  active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_reward_vehicle_unique ON reward_members(owner, plate_key, province_key);
