@@ -6,8 +6,11 @@ type Report={policy:{enabled:number;points_per_wash:number;include_free:number};
 export default function RewardsDashboard(){
  const [data,setData]=useState<Report|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [points,setPoints]=useState(10),[enabled,setEnabled]=useState(false),[matches,setMatches]=useState<Record<string,string>>({});
+ const [reportDate,setReportDate]=useState(()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
+ const [daily,setDaily]=useState<{report:string;summary:{arrivals:number;closedArrivals:number;waiting:number;cash:number;transfer:number;total:number}}|null>(null);
  async function refresh(){setLoading(true);try{const r=await fetch('/api/rewards');if(!r.ok)throw Error(await r.text());const d:Report=await r.json();setData(d);setPoints(d.policy.points_per_wash);setEnabled(d.policy.enabled===1);setError('')}catch(e){setError(String(e))}finally{setLoading(false)}}
  useEffect(()=>{refresh()},[]);
+ useEffect(()=>{let active=true;fetch('/api/rewards/report?date='+encodeURIComponent(reportDate)).then(r=>{if(!r.ok)throw Error('โหลดรายงานไม่ได้');return r.json()}).then(r=>{if(active)setDaily(r)}).catch(()=>{if(active)setDaily(null)});return()=>{active=false}},[reportDate,data]);
  async function send(body:Record<string,unknown>,success='บันทึกเรียบร้อย'){setBusy(true);setError('');try{const r=await fetch('/api/rewards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());setNotice(success);await refresh()}catch(e){setError(String(e))}finally{setBusy(false)}}
  function enroll(ev:FormEvent<HTMLFormElement>){ev.preventDefault();const f=new FormData(ev.currentTarget);void send({action:'enroll',recordId:f.get('recordId')},'เปิดสิทธิ์สะสมคะแนนให้รถใน CRM แล้ว');ev.currentTarget.reset()}
  const review=data?.jobs.filter(j=>j.status==='needs_review'||(!j.member_id&&j.status!=='excluded')||j.service_type==='unknown')||[];
@@ -18,6 +21,17 @@ export default function RewardsDashboard(){
   {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice success" role="status">{notice}</p>}
   {loading?<p>กำลังโหลดข้อมูล…</p>:<>
    <div className="metrics"><div className="metric"><span>รถสมาชิก</span><strong>{data?.members.length||0}</strong></div><div className="metric"><span>คะแนนที่ยังใช้ได้</span><strong>{totalPoints}</strong></div><div className="metric"><span>งานรอตรวจสอบ</span><strong>{review.length}</strong></div></div>
+   <section className="card field-row">
+    <div className="topline"><h3>รายงานรถและรายรับประจำวัน</h3><label>วันที่ <input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></label></div>
+    {daily?<><div className="metrics">
+     <div className="metric"><span>รถเข้าร้าน</span><strong>{daily.summary.arrivals}</strong></div>
+     <div className="metric"><span>มี Reply ปิดงาน</span><strong>{daily.summary.closedArrivals}</strong></div>
+     <div className="metric"><span>ยังไม่ Reply</span><strong>{daily.summary.waiting}</strong></div>
+     <div className="metric"><span>เงินสด</span><strong>{daily.summary.cash.toLocaleString('th-TH')}</strong></div>
+     <div className="metric"><span>เงินโอน</span><strong>{daily.summary.transfer.toLocaleString('th-TH')}</strong></div>
+     <div className="metric"><span>รายรับรวม</span><strong>{daily.summary.total.toLocaleString('th-TH')} บาท</strong></div>
+    </div><pre style={{whiteSpace:'pre-wrap',fontFamily:'inherit'}}>{daily.report}</pre></>:<p className="helper">ไม่สามารถอ่านรายงานได้ กรุณาตรวจฐานข้อมูลและการตั้งค่า</p>}
+   </section>
    <form className="card" onSubmit={e=>{e.preventDefault();void send({action:'policy',enabled,pointsPerWash:points},'บันทึกกติกาคะแนนแล้ว')}}>
     <h3>กติกาการให้คะแนน</h3>
     <p className="helper">โปร 699 / 999 / 1999 และบริการอื่นไม่สะสมคะแนน · ล้างฟรียังไม่สะสมคะแนนจนกว่าจะเปิดการตรวจสิทธิ์โปรครบถ้วน</p>
