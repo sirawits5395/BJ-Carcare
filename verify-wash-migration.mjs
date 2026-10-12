@@ -3,6 +3,15 @@ import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 
 const sql=readFileSync(new URL('./migrations/20261011_wash_rewards.sql',import.meta.url),'utf8');
+const runtimeSchema=readFileSync(new URL('./lib/wash-schema.ts',import.meta.url),'utf8').match(/export const washSchemaSql = `([\s\S]*?)`;\s*$/)?.[1];
+assert.ok(runtimeSchema,'owner migration endpoint must use the checked-in runtime schema');
+const runtimeDb=new DatabaseSync(':memory:');
+runtimeDb.exec('CREATE TABLE records(id TEXT PRIMARY KEY);');
+runtimeDb.exec(runtimeSchema);
+assert.equal(runtimeDb.prepare("SELECT COUNT(*) count FROM sqlite_master WHERE type='table' AND name IN ('reward_members','reward_policies','wash_jobs','line_job_replies','reward_awards','reward_entitlements','reward_entitlement_audit','reward_audit','line_staff_command_events','wash_job_audit','customer_slip_claims','customer_slip_claim_audit','bj_schema_migrations')").get().count,13);
+runtimeDb.exec(runtimeSchema);
+assert.equal(runtimeDb.prepare("SELECT COUNT(*) count FROM bj_schema_migrations WHERE id='20261011_wash_rewards'").get().count,1);
+runtimeDb.close();
 const db=new DatabaseSync(':memory:');
 db.exec('CREATE TABLE records(id TEXT PRIMARY KEY);');
 db.exec(sql);

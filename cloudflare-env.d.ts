@@ -11,6 +11,7 @@ declare namespace Cloudflare {
     BJ_STAFF_LINE_GROUP_ID?: string;
     BJ_STAFF_REPORT_USER_IDS?: string;
     BJ_WASH_BOT_ENABLED?: string;
+    BJ_WASH_COUNT_ONLY?: string;
     BJ_REWARDS_ENABLED?: string;
     BJ_OWNER_ID?: string;
     BJ_ADMIN_EMAIL?: string;

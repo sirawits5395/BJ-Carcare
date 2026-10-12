@@ -2,6 +2,10 @@ export type WashType = 'wash' | 'free_wash' | 'promo_sale' | 'membership_sale' |
 export type PaymentMethod = 'cash' | 'transfer' | 'none';
 export interface StaffReply { type: WashType; amount: number | null; payment: PaymentMethod; text: string }
 
+export function closesForRevenue(determinate: boolean, memberId: string | null, countOnly: boolean): boolean {
+  return determinate && (countOnly || !!memberId);
+}
+
 export function plateKey(s: string): string {
   return s.normalize('NFKC').replace(/[\s\-\u200B-\u200D.]/g, '').toLocaleUpperCase('th-TH');
 }

@@ -9,10 +9,13 @@ export async function GET(){
   const channelId=c.BJ_STAFF_LINE_CHANNEL_ID||'',token=c.BJ_STAFF_LINE_CHANNEL_ACCESS_TOKEN||'';
   const expectedDisplayName=c.BJ_STAFF_EXPECTED_DISPLAY_NAME||'BJ Carcare AI',expectedBasicId=c.BJ_STAFF_EXPECTED_BASIC_ID||'@445qplae';
   const verified=await verifyStaffChannelIdentity(token,channelId,expectedDisplayName,expectedBasicId);
+  const countOnly=c.BJ_WASH_COUNT_ONLY==='true';
   const ready={staffChannelSecret:!!c.BJ_STAFF_LINE_CHANNEL_SECRET,staffChannelAccessToken:!!token,staffGroupId:!!c.BJ_STAFF_LINE_GROUP_ID,crmOwnerId:!!c.BJ_OWNER_ID,aiVehicleRecognition:!!c.OPENAI_API_KEY,durableImageQueue:!!c.BJ_WASH_QUEUE,channelIdConfigured:!!channelId,channelIdentityVerified:verified.channelId&&verified.account};
   const messageUsage=await lineMessageUsage(token);
   return Response.json({
-   staffBotEnabled:c.BJ_WASH_BOT_ENABLED==='true'&&Object.entries(ready).filter(([key])=>key!=='aiVehicleRecognition').every(([,value])=>value),
+   staffBotEnabled:c.BJ_WASH_BOT_ENABLED==='true'&&Object.entries(ready).filter(([key])=>key!=='aiVehicleRecognition'&&!(countOnly&&['durableImageQueue','staffChannelAccessToken','channelIdentityVerified'].includes(key))).every(([,value])=>value),
+   countingOnlyMode:countOnly,
+   rewardsEnabled:c.BJ_REWARDS_ENABLED==='true',
    expectedStaffChannel:{channelId,basicId:expectedBasicId,displayName:expectedDisplayName},
    verifiedStaffChannel:verified,
    messageUsage,

@@ -1,6 +1,6 @@
 import {env} from 'cloudflare:workers';
 import {db,bucket} from '@/lib/server';
-import {eligibleForPoints,parseStaffReply,plateKey,provinceKey,type WashType} from '@/lib/wash-rewards';
+import {closesForRevenue,eligibleForPoints,parseStaffReply,plateKey,provinceKey,type WashType} from '@/lib/wash-rewards';
 import {bangkokDate,bangkokDateRange,formatWashSummary,reportCommand,summarizeWashDay,type WashJobReportRow} from '@/lib/wash-report';
 
 type GroupEvent={type:string;timestamp:number;replyToken?:string;source?:{type?:string;groupId?:string;userId?:string};message?:{type:string;id:string;quotedMessageId?:string;text?:string;contentProvider?:{type:string}}};
@@ -148,6 +148,8 @@ async function handleReport(e:GroupEvent,owner:string,group:string):Promise<bool
  if(users.length&&!users.includes(e.source?.userId||''))return true;
  const replyToken=safeText(e.replyToken,200);
  if(!replyToken)return true;
+ const accessToken=safeText(c.BJ_STAFF_LINE_CHANNEL_ACCESS_TOKEN,4096);
+ if(!accessToken)return true;
  let start:string,end:string;
  try{[start,end]=bangkokDateRange(date)}catch{return true}
  const recent=await db().prepare(
@@ -158,7 +160,7 @@ async function handleReport(e:GroupEvent,owner:string,group:string):Promise<bool
  if(!command.meta.changes)return true;
  const result=await fetch('https://api.line.me/v2/bot/message/reply',{
    method:'POST',
-   headers:{Authorization:'Bearer '+safeText(c.BJ_STAFF_LINE_CHANNEL_ACCESS_TOKEN,4096),'Content-Type':'application/json'},
+   headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},
    body:JSON.stringify({replyToken,messages:[{type:'text',text:report}]}),
    signal:AbortSignal.timeout(9000)
  });
@@ -171,6 +173,12 @@ function validStaffImage(e:GroupEvent,owner:string,group:string){
 export async function queueStaffImage(e:GroupEvent){
   const c=config(),owner=safeText(c.BJ_OWNER_ID,200),group=safeText(e.source?.groupId,100),queue=c.BJ_WASH_QUEUE as Queue<StaffImageQueueMessage>|undefined;
   if(!validStaffImage(e,owner,group))return;
+  if(c.BJ_WASH_COUNT_ONLY==='true'){
+    const when=stamp(e.timestamp);
+    await db().prepare("INSERT OR IGNORE INTO wash_jobs(image_id,owner,group_id,status,analysis_status,opened_at,updated_at) VALUES(?,?,?,'open','complete',?,?)")
+      .bind(e.message!.id,owner,group,when,now()).run();
+    return;
+  }
   if(!queue)throw new Response('Staff image queue is not configured',{status:503});
   const id=e.message!.id,when=stamp(e.timestamp);
   const inserted=await db().prepare("INSERT OR IGNORE INTO wash_jobs(image_id,owner,group_id,status,analysis_status,opened_at,updated_at) VALUES(?,?,?,'open','queued',?,?)").bind(id,owner,group,when,now()).run();
@@ -212,7 +220,7 @@ async function handleImage(e:GroupEvent,owner:string,group:string){
   }
 }
 async function handleText(e:GroupEvent,owner:string,group:string){
-  const m=e.message!,quoted=safeText(m.quotedMessageId,100);
+  const c=config(),m=e.message!,quoted=safeText(m.quotedMessageId,100);
   if(!quoted)return;
   let job=await db().prepare('SELECT * FROM wash_jobs WHERE image_id=? AND owner=? AND group_id=?').bind(quoted,owner,group).first<WashJobRow>();
   if(!job){
@@ -231,7 +239,7 @@ async function handleText(e:GroupEvent,owner:string,group:string){
   }
   // Older or replayed webhook messages must not overwrite a newer correction.
   const determinate=parsed.type!=='unknown'&&parsed.amount!==null&&parsed.payment!=='none';
-  const status=job.member_id&&determinate?'closed':'needs_review';
+  const status=closesForRevenue(determinate,job.member_id,c.BJ_WASH_COUNT_ONLY==='true')?'closed':'needs_review';
   const updated=await db().prepare(
     "UPDATE wash_jobs SET status=?,service_type=?,payment_method=?,amount=?,owner_verified=0,reply_id=?,reply_text=?,reply_at=?,closed_at=CASE WHEN ?='closed' THEN ? ELSE NULL END,updated_at=?,revision=revision+1 WHERE image_id=? AND owner=? AND group_id=? AND status NOT IN ('excluded','duplicate') AND duplicate_of IS NULL AND (reply_at IS NULL OR reply_at<=?)"
   ).bind(status,parsed.type,parsed.payment,parsed.amount,m.id,parsed.text,when,status,when,now(),job.image_id,owner,group,when).run();

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {parseStaffReply,eligibleForPoints,plateKey,provinceKey} from './lib/wash-rewards.ts';
+import {closesForRevenue,parseStaffReply,eligibleForPoints,plateKey,provinceKey} from './lib/wash-rewards.ts';
 for(const [input,kind,amount,payment] of [
  ['250','wash',250,'transfer'],
  ['สด450','wash',450,'cash'],
@@ -27,6 +27,9 @@ assert.equal(eligibleForPoints('wash',false),true);
 assert.equal(eligibleForPoints('free_wash',false),false);
 assert.equal(eligibleForPoints('free_wash',true),true);
 assert.equal(eligibleForPoints('promo_sale',true),false);
+assert.equal(closesForRevenue(true,null,true),true,'count-only closes a determinate receipt without a member match');
+assert.equal(closesForRevenue(false,null,true),false,'ambiguous jobs stay in review');
+assert.equal(closesForRevenue(true,null,false),false,'full mode still requires a verified member');
 assert.equal(plateKey('2 กท-3145'),'2กท3145');
 assert.equal(provinceKey('กรุงเทพมหานคร'),'กรุงเทพมหานคร');
 console.log('Wash rewards text rules passed');
