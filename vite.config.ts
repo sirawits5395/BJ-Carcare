@@ -34,6 +34,10 @@ const localBindingConfig = {
         },
       ]
     : [],
+  queues: {
+    producers: [{binding:'BJ_WASH_QUEUE',queue:'bj-carcare-wash-images-staging'}],
+    consumers: [{queue:'bj-carcare-wash-images-staging',max_batch_size:5,max_retries:5,dead_letter_queue:'bj-carcare-wash-images-staging-dlq'}],
+  },
 };
 
 export default defineConfig(async ({ command }) => {

@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bj-carcare-staging",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "BJ_WASH_BOT_ENABLED": "false",
+    "BJ_REWARDS_ENABLED": "false",
+    "LINE_SEND_ENABLED": "false"
+  },
+  "assets": {
+    "directory": "./dist/client"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bj-carcare-crm-staging",
+      "database_id": "fcf86997-134e-4c3f-83c5-a6c9b97121a2"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "bj-carcare-uploads-staging"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "BJ_WASH_QUEUE",
+        "queue": "bj-carcare-wash-images-staging"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "bj-carcare-wash-images-staging",
+        "max_batch_size": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "bj-carcare-wash-images-staging-dlq"
+      }
+    ]
+  }
+}

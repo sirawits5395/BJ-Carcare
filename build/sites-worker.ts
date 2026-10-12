@@ -1,6 +1,7 @@
 import handler from "vinext/server/fetch-handler";
 import { runWithConnectorBinding } from "../lib/connector-context";
 import type { ConnectorBinding } from "../lib/connector-contract.mjs";
+import { handleStaffImageQueueBatch } from "../lib/wash-automation";
 
 export default {
   fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext<{ CONNECTORS?: ConnectorBinding }>) {
@@ -24,5 +25,8 @@ export default {
       };
     }
     return runWithConnectorBinding(binding, () => handler.fetch(request, env, ctx));
+  },
+  queue(batch: MessageBatch<import('../lib/wash-automation').StaffImageQueueMessage>, env: Cloudflare.Env) {
+    return handleStaffImageQueueBatch(batch, env);
   },
 };
