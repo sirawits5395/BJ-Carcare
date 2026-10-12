@@ -4,7 +4,7 @@ type Member={id:string;plate:string;province:string;customer_name:string;phone:s
 type SlipClaim={id:string;line_user_id:string;plate:string|null;province:string|null;image_key:string;status:string;created_at:string;expires_at:string;reply_sent_at:string|null;confirmed_job_image_id:string|null};
 type Entitlement={id:string;member_id:string;source_job_id:string;status:string;valid_from:string;expires_at:string;redeemed_job_id:string|null;plate:string;province:string};
 type Job={image_id:string;plate:string|null;province:string|null;brand:string|null;model:string|null;color:string|null;plate_confidence:number;member_id:string|null;member_name:string|null;service_type:string;payment_method:string;amount:number|null;reply_text:string|null;opened_at:string;status:string;analysis_status:string;owner_verified:number;duplicate_of:string|null;revision:number;award_active:number|null;award_points:number|null;image_key:string|null};
-type Report={policy:{enabled:number;points_per_wash:number;include_free:number};members:Member[];jobs:Job[];transactions:{id:string;plate:string;province:string;points_delta:number;reason:string;created_at:string}[];registered:{id:string;name:string;plate:string;province:string;phone:string}[];slipClaims:SlipClaim[];entitlements:Entitlement[]};
+type Report={rewardsEnabled:boolean;policy:{enabled:number;points_per_wash:number;include_free:number};members:Member[];jobs:Job[];transactions:{id:string;plate:string;province:string;points_delta:number;reason:string;created_at:string}[];registered:{id:string;name:string;plate:string;province:string;phone:string}[];slipClaims:SlipClaim[];entitlements:Entitlement[]};
 export default function RewardsDashboard(){
  const [data,setData]=useState<Report|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [points,setPoints]=useState(10),[enabled,setEnabled]=useState(false),[matches,setMatches]=useState<Record<string,string>>({}),[corrections,setCorrections]=useState<Record<string,{serviceType:string;paymentMethod:string;amount:string}>>({});
@@ -19,7 +19,7 @@ export default function RewardsDashboard(){
  const totalPoints=data?.members.reduce((n,m)=>n+Number(m.points),0)||0;
  return <section className="panel">
   <div className="topline"><h2>Rewards · สะสมคะแนนล้างรถ</h2><button className="btn secondary" disabled={loading} onClick={refresh}>รีเฟรช</button></div>
-  <p className="helper">ให้คะแนนตามครั้งที่ล้างสำเร็จ หลังพนักงาน Reply ปิดงานและยืนยันว่าเป็นรถสมาชิก คะแนนไม่ขึ้นจากการส่งรูปเพียงอย่างเดียว</p>
+  <p className="helper">{data?.rewardsEnabled?'ให้คะแนนตามครั้งที่ล้างสำเร็จ หลังพนักงาน Reply ปิดงานและยืนยันว่าเป็นรถสมาชิก คะแนนไม่ขึ้นจากการส่งรูปเพียงอย่างเดียว':'ระบบนับรถและยอดทำงานได้โดยไม่เปิดสะสมคะแนน · แต้มและสิทธิ์ล้างฟรียังปิดอยู่'}</p>
   {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice success" role="status">{notice}</p>}
   {loading?<p>กำลังโหลดข้อมูล…</p>:<>
    <div className="metrics"><div className="metric"><span>รถสมาชิก</span><strong>{data?.members.length||0}</strong></div><div className="metric"><span>คะแนนที่ยังใช้ได้</span><strong>{totalPoints}</strong></div><div className="metric"><span>งานรอตรวจสอบ</span><strong>{review.length}</strong></div></div>
@@ -41,8 +41,8 @@ export default function RewardsDashboard(){
    <form className="card" onSubmit={e=>{e.preventDefault();void send({action:'policy',enabled,pointsPerWash:points},'บันทึกกติกาคะแนนแล้ว')}}>
     <h3>กติกาการให้คะแนน</h3>
     <p className="helper">โปร 699 / 999 / 1999 และบริการอื่นไม่สะสมคะแนน · ล้างฟรียังไม่สะสมคะแนนจนกว่าจะเปิดการตรวจสิทธิ์โปรครบถ้วน</p>
-    <div className="grid2 field-row"><label>คะแนนต่อการล้าง 1 ครั้ง<input type="number" min="1" max="1000" required value={points} onChange={e=>setPoints(Number(e.target.value))}/></label><label className="choice"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> เปิดให้สะสมคะแนนจาก LINE Bot</label></div>
-    <button className="btn" disabled={busy}>บันทึกกติกา</button>
+    <div className="grid2 field-row"><label>คะแนนต่อการล้าง 1 ครั้ง<input type="number" min="1" max="1000" required value={points} onChange={e=>setPoints(Number(e.target.value))}/></label><label className="choice"><input type="checkbox" checked={enabled} disabled={!data?.rewardsEnabled} onChange={e=>setEnabled(e.target.checked)}/> เปิดให้สะสมคะแนนจาก LINE Bot</label></div>
+    <button className="btn" disabled={busy||!data?.rewardsEnabled}>บันทึกกติกา</button>
    </form>
    <form className="card" onSubmit={enroll}><h3>เปิดสิทธิ์คะแนนให้รถที่ลงทะเบียนกับ CRM</h3><p className="helper">เลือกรถที่ผ่านการยืนยันบริการใน CRM แล้ว ข้อมูลชื่อและทะเบียนจะถูกดึงจากฐานเดิม ไม่สร้างลูกค้าใหม่</p>
     <label>รถที่ลงทะเบียนแล้ว *<select className="search" name="recordId" required defaultValue=""><option value="" disabled>เลือกทะเบียนและลูกค้า</option>{data?.registered.map(r=><option key={r.id} value={r.id}>{r.plate} · {r.province} — {r.name}</option>)}</select></label>

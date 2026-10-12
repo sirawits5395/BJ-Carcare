@@ -60,6 +60,9 @@ async function findMember(owner:string,plate:string,province:string):Promise<str
   return entries.results.length===1?entries.results[0].id:null;
 }
 export async function syncWashAward(jobId:string,reason:string):Promise<void>{
+  // Counts and revenue can run in production before the owner launches rewards.
+  // Keep point awards and promo free-wash entitlements inert unless explicitly enabled.
+  if(config().BJ_REWARDS_ENABLED!=='true')return;
   const job=await db().prepare('SELECT * FROM wash_jobs WHERE image_id=?').bind(jobId).first<WashJobRow>();
   if(!job)return;
   await syncPromoEntitlement(job);
@@ -124,6 +127,7 @@ async function syncPromoEntitlement(job:WashJobRow){
  }
 }
 export async function redeemFreeWash(job:WashJobRow,replyId:string,replyText:string,when:string,expectedRevision=job.revision):Promise<boolean>{
+ if(config().BJ_REWARDS_ENABLED!=='true')return false;
  if(!job.member_id)return false;
  const entitlement=await db().prepare("SELECT id FROM reward_entitlements WHERE owner=? AND member_id=? AND status='active' AND valid_from<=? AND expires_at>? ORDER BY expires_at LIMIT 1").bind(job.owner,job.member_id,when,when).first<{id:string}>();
  if(!entitlement)return false;

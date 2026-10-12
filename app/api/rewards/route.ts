@@ -1,4 +1,5 @@
 import {db,owner,sameOrigin,fail} from '@/lib/server';
+import {env} from 'cloudflare:workers';
 import {plateKey,provinceKey} from '@/lib/wash-rewards';
 import {redeemFreeWash,syncWashAward} from '@/lib/wash-automation';
 import type {WashType,PaymentMethod} from '@/lib/wash-rewards';
@@ -12,6 +13,7 @@ type AwardRow={member_id:string;points:number;active:number};
 export async function GET(){
  try{
   const uid=await owner();
+  const rewardsEnabled=(env as Cloudflare.Env).BJ_REWARDS_ENABLED==='true';
   const [policy,members,jobs,transactions,registered,slipClaims,entitlements]=await Promise.all([
    db().prepare('SELECT * FROM reward_policies WHERE owner=?').bind(uid).first(),
    db().prepare('SELECT m.*,COALESCE(SUM(CASE WHEN a.active=1 THEN a.points ELSE 0 END),0) AS points,COUNT(CASE WHEN a.active=1 THEN 1 END) AS washes FROM reward_members m LEFT JOIN reward_awards a ON a.member_id=m.id AND a.owner=m.owner WHERE m.owner=? GROUP BY m.id ORDER BY m.created_at DESC LIMIT 250').bind(uid).all(),
@@ -21,13 +23,14 @@ export async function GET(){
    db().prepare("SELECT id,line_user_id,plate,province,image_key,CASE WHEN status IN ('pending','awaiting_review') AND expires_at<=? THEN 'expired' ELSE status END AS status,created_at,expires_at,reply_sent_at,confirmed_job_image_id FROM customer_slip_claims WHERE owner=? ORDER BY created_at DESC LIMIT 100").bind(new Date().toISOString(),uid).all(),
    db().prepare("SELECT e.id,e.member_id,e.source_job_id,CASE WHEN e.status='active' AND e.expires_at<=? THEN 'expired' ELSE e.status END AS status,e.valid_from,e.expires_at,e.redeemed_job_id,m.plate,m.province FROM reward_entitlements e JOIN reward_members m ON m.id=e.member_id WHERE e.owner=? ORDER BY e.created_at DESC LIMIT 100").bind(new Date().toISOString(),uid).all()
   ]);
-  return Response.json({policy:policy||{enabled:0,points_per_wash:10,include_free:0},members:members.results,jobs:jobs.results,transactions:transactions.results,registered:registered.results,slipClaims:slipClaims.results,entitlements:entitlements.results},{headers:{'Cache-Control':'no-store'}});
+  return Response.json({rewardsEnabled,policy:rewardsEnabled?(policy||{enabled:0,points_per_wash:10,include_free:0}):{...(policy||{points_per_wash:10,include_free:0}),enabled:0},members:members.results,jobs:jobs.results,transactions:transactions.results,registered:registered.results,slipClaims:slipClaims.results,entitlements:entitlements.results},{headers:{'Cache-Control':'no-store'}});
  }catch(e){return fail(e)}
 }
 export async function POST(req:Request){
  try{
   sameOrigin(req);
   const uid=await owner(),v=await req.json() as Record<string,unknown>,action=clean(v.action,40);
+  if((env as Cloudflare.Env).BJ_REWARDS_ENABLED!=='true'&&(action==='enroll'||action==='confirm_slip_claim'||action==='policy'&&v.enabled===true))return bad('ระบบสะสมแต้มและสิทธิ์โปรยังไม่เปิดใช้งาน',409);
   if(action==='enroll'){
    const recordId=clean(v.recordId,100);
    const original=await db().prepare("SELECT id,name,phone,plate,province FROM records WHERE id=? AND owner=? AND status='approved'").bind(recordId,uid).first<RecordRow>();

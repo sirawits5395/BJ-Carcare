@@ -8,6 +8,7 @@
   "preview_urls": false,
   "vars": {
     "BJ_WASH_BOT_ENABLED": "false",
+    "BJ_REWARDS_ENABLED": "false",
     "LINE_SEND_ENABLED": "false"
   },
   "assets": {
