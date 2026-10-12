@@ -6,6 +6,8 @@ declare namespace Cloudflare {
     BJ_STAFF_LINE_CHANNEL_ID?: string;
     BJ_STAFF_LINE_CHANNEL_SECRET?: string;
     BJ_STAFF_LINE_CHANNEL_ACCESS_TOKEN?: string;
+    BJ_STAFF_EXPECTED_DISPLAY_NAME?: string;
+    BJ_STAFF_EXPECTED_BASIC_ID?: string;
     BJ_STAFF_LINE_GROUP_ID?: string;
     BJ_STAFF_REPORT_USER_IDS?: string;
     BJ_WASH_BOT_ENABLED?: string;
